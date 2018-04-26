@@ -24,7 +24,7 @@ func main() {
 
 func testKerb() error {
 
-	uri := "mongodb://localhost"
+	uri := "mongodb://ldaptest.10gen.cc:27017"
 
 	cs, err := connstring.Parse(uri)
 	if err != nil {
@@ -85,13 +85,13 @@ func testKerb() error {
 	}
 
 	authCred := &auth.Cred{
-		Source:      "admin",
-		Username:    "kerb-test",
-		Password:    "kerb-test",
+		Source:      "$external",
+		Username:    "drivers@LDAPTEST.10GEN.CC",
+		Password:    "powerbook17",
 		PasswordSet: true,
 	}
 
-	authenticator, err := auth.CreateAuthenticator("SCRAM-SHA-1", authCred)
+	authenticator, err := auth.CreateAuthenticator("GSSAPI", authCred)
 	if err != nil {
 		return err
 	}

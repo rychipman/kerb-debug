@@ -1,0 +1,4 @@
+
+[[constraint]]
+  name = "github.com/10gen/mongo-go-driver"
+  revision = "6e181d748da0b1aeb4b667f239215371fed1fbd7"

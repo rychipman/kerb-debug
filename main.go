@@ -3,28 +3,38 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
+	"time"
 
+	"github.com/10gen/mongo-go-driver/bson"
 	"github.com/10gen/mongo-go-driver/mongo/connstring"
 	"github.com/10gen/mongo-go-driver/mongo/model"
 	"github.com/10gen/mongo-go-driver/mongo/private/auth"
 	"github.com/10gen/mongo-go-driver/mongo/private/cluster"
 	"github.com/10gen/mongo-go-driver/mongo/private/conn"
+	"github.com/10gen/mongo-go-driver/mongo/private/ops"
 	"github.com/10gen/mongo-go-driver/mongo/private/server"
 	"github.com/10gen/mongo-go-driver/mongo/readpref"
 )
 
 func main() {
-	err := testKerb()
+	uri := "mongodb://ldaptest.10gen.cc:27017"
+	username := "drivers@LDAPTEST.10GEN.CC"
+	password := "powerbook17"
+
+	fmt.Println()
+	err := testKerb(uri, username, password)
 	if err != nil {
 		fmt.Printf("kerb test failed: %v\n", err)
-		os.Exit(1)
+	}
+
+	fmt.Println()
+	err = driverTestKerb(uri, username, password)
+	if err != nil {
+		fmt.Printf("driver's kerb test failed: %v\n", err)
 	}
 }
 
-func testKerb() error {
-
-	uri := "mongodb://ldaptest.10gen.cc:27017"
+func testKerb(uri, username, password string) error {
 
 	cs, err := connstring.Parse(uri)
 	if err != nil {
@@ -86,8 +96,8 @@ func testKerb() error {
 
 	authCred := &auth.Cred{
 		Source:      "$external",
-		Username:    "drivers@LDAPTEST.10GEN.CC",
-		Password:    "powerbook17",
+		Username:    username,
+		Password:    password,
 		PasswordSet: true,
 	}
 
@@ -136,4 +146,51 @@ func getReadPreference(cs connstring.ConnString) (*readpref.ReadPref, error) {
 	}
 
 	return readpref.New(mode)
+}
+
+func driverTestKerb(uri, username, password string) error {
+
+	cs, err := connstring.Parse(uri)
+	if err != nil {
+		return err
+	}
+
+	c, err := cluster.New(
+		cluster.WithConnString(cs),
+	)
+	if err != nil {
+		return err
+	}
+
+	ctx := context.Background()
+	timeoutCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	s, err := c.SelectServer(timeoutCtx, cluster.WriteSelector(), readpref.Primary())
+	if err != nil {
+		return fmt.Errorf("%v: %v", err, c.Model().Servers[0].LastError)
+	}
+
+	dbname := cs.Database
+	if dbname == "" {
+		dbname = "test"
+	}
+
+	var result bson.D
+	err = ops.Run(
+		ctx,
+		&ops.SelectedServer{
+			Server:   s,
+			ReadPref: readpref.Primary(),
+		},
+		dbname,
+		bson.D{{"count", "test"}},
+		&result)
+	if err != nil {
+		return fmt.Errorf("failed executing count command on %s.%s: %v", dbname, "test", err)
+	}
+
+	fmt.Println(result)
+
+	return nil
 }
